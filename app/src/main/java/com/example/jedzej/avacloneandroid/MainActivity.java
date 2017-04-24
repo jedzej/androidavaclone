@@ -7,6 +7,7 @@ import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
     public String[] entries = {"a","b","c"};
+    private boolean triggered = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -15,8 +16,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void buttonOnClick(View v) {
+
         Button button = (Button) v;
-        button.setText("KLIKNIETE");
-        
+        button.setText(triggered ? "KLIKNIETE" : "ODKLIKNIETE");
+        triggered = !triggered;
+
     }
 }
