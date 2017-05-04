@@ -1,0 +1,36 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    defaultConfig {
+        minSdkVersion 15
+        targetSdkVersion 23
+        versionCode 1
+        versionName '1.0'
+        //jackOptions {
+        //    enabled true
+        //}
+    }
+
+    lintOptions {
+        lintConfig file('lint.xml')
+    }
+
+    compileOptions {
+        sourceCompatibility rootProject.ext.sourceCompatibility
+        targetCompatibility rootProject.ext.sourceCompatibility
+    }
+}
+
+dependencies {
+    compile project(':rxandroid')
+    compile 'com.google.firebase:firebase-core:10.2.4'
+    compile 'com.google.firebase:firebase-database:10.2.4'
+    compile 'com.google.firebase:firebase-auth:10.2.4'
+    compile 'com.github.frangsierra:rx2firebase:1.1.1'
+    compile 'com.android.support:design:23.2.0'
+}
+
+apply plugin: 'com.google.gms.google-services'
