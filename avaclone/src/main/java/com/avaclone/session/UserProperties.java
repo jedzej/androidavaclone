@@ -30,7 +30,7 @@ public class UserProperties {
 
     public static class UserPropertiesException extends Throwable {
 
-    } ;
+    }
 
     public String lobbyId;
     public String userId;

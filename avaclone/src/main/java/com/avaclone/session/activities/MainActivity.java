@@ -78,7 +78,6 @@ public class MainActivity extends Activity {
 
         Log.d(TAG, "CREATE USER");
         User.createObservable()
-                .take(1)
                 .subscribe(user -> {
                     if (!user.isSignedIn()) {
                         Intent intent = new Intent(this, LoginActivity.class);
@@ -97,28 +96,20 @@ public class MainActivity extends Activity {
             });
         });*/
         Observable<User> userObservable = User.createObservable()
-                .doOnNext(user -> {
-                    Log.d(TAG, "userObservable: " + user.toString());
-                })
-                .doOnSubscribe(disposable -> {
-                    Log.d(TAG, "user subscribed");
-                });
+                .doOnNext(user -> Log.d(TAG, "userObservable: " + user.toString()))
+                .doOnSubscribe(disposable -> Log.d(TAG, "user subscribed"));
         Log.d(TAG, "step1");
         Observable<UserProperties> userPropertiesObservable = userObservable
                 .flatMap(user -> UserProperties.observeFor(user));
         Log.d(TAG, "step2");
         userPropertiesObservable.subscribe(
-                userProperties -> {
-                    Log.d(TAG, "USERPROPERTIES1 sub: " + userProperties.toString());
-                },
+                userProperties -> Log.d(TAG, "USERPROPERTIES1 sub: " + userProperties.toString()),
                 error -> {
                     throw new OnErrorNotImplementedException(error);
                 });
         Log.d(TAG, "step3");
         userPropertiesObservable.subscribe(
-                userProperties -> {
-                    Log.d(TAG, "USERPROPERTIES2 sub: " + userProperties.toString());
-                },
+                userProperties -> Log.d(TAG, "USERPROPERTIES2 sub: " + userProperties.toString()),
                 error -> {
                     throw new OnErrorNotImplementedException(error);
                 });
