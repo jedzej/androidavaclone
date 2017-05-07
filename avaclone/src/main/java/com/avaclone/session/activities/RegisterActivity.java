@@ -2,11 +2,10 @@ package com.avaclone.session.activities;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.content.Intent;
 import android.app.Activity;
-
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
@@ -18,10 +17,8 @@ import com.avaclone.utils.forms.ValidableForm;
 import com.avaclone.utils.forms.ValidationFailedException;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
-import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxTextView;
-
 
 import durdinapps.rxfirebase2.RxFirebaseAuth;
 import io.reactivex.Observable;
@@ -30,42 +27,36 @@ import io.reactivex.disposables.CompositeDisposable;
 /**
  * A login screen that offers login via email/password.
  */
-public class LoginActivity extends Activity {
-
-    enum LoginFields {
-        EMAIL,
-        PASSWORD
+public class RegisterActivity extends Activity {
+    enum RegisterFields {
+        EMAIL_FIELD,
+        PASSWORD_FIELD,
+        USERNAME_FIELD
     }
-
-    /**
-     * Keep track of the login task to ensure we can cancel it if requested.
-     */
 
     // UI references.
     private AutoCompleteTextView mEmailView;
+    private EditText mUsernameView;
     private EditText mPasswordView;
     private View mProgressView;
-    private View mLoginFormView;
+    private View mRegisterFormView;
 
     private final CompositeDisposable disposables = new CompositeDisposable();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_login);
+        setContentView(R.layout.activity_register);
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
+
         mPasswordView = (EditText) findViewById(R.id.password);
-        mLoginFormView = findViewById(R.id.login_form);
-        mProgressView = findViewById(R.id.login_progress);
-    }
 
+        mUsernameView = (EditText) findViewById(R.id.username);
 
-    @Override
-    protected void onResume() {
-        super.onResume();
+        mRegisterFormView = findViewById(R.id.register_form);
+        mProgressView = findViewById(R.id.register_progress);
 
-        // email validated observable
         Observable<ValidableField> emailValidated = RxTextView.textChangeEvents(mEmailView)
                 .map(emailChanged ->
                         new ValidableField<>(emailChanged.text().toString(), email -> {
@@ -76,7 +67,6 @@ public class LoginActivity extends Activity {
                         })
                 );
 
-        // password validated observable
         Observable<ValidableField> passwordValidated = RxTextView.textChangeEvents(mPasswordView)
                 .map(passwordChanged ->
                         new ValidableField<>(passwordChanged.text(), password -> {
@@ -87,31 +77,52 @@ public class LoginActivity extends Activity {
                         })
                 );
 
-        // check if user is logged in
-        disposables.add(User.getMaybe().subscribe(user ->finish(),
-                error -> {
-                    // if no user subscribe for login attempts
-                    RxView.clicks(findViewById(R.id.sign_in_button)).subscribe((Object o) -> Observable.zip(
-                            emailValidated,
-                            passwordValidated,
-                            (e,p) -> {
-                                ValidableForm form = new ValidableForm();
-                                form.addField(LoginFields.EMAIL, e);
-                                form.addField(LoginFields.PASSWORD, p);
-                                return form;
-                            })
-                            .subscribe(form -> {
-                                if(form.isValid()){
-                                    attemptLogin(form);
-                                }
-                            }));
+        Observable<ValidableField> usernameValidated = RxTextView.textChangeEvents(mUsernameView)
+                .map(usernameChanged ->
+                        new ValidableField<>(usernameChanged.text(), username -> {
+                            if (TextUtils.isEmpty(username))
+                                throw new ValidationFailedException(getString(R.string.error_field_required));
+                        })
+                );
 
-                    // subscribe for registration request
-                    disposables.add(RxView.clicks(findViewById(R.id.go_to_registration_button)).subscribe(o -> {
-                        Intent intent = new Intent(this, RegisterActivity.class);
-                        startActivity(intent);
-                    }));
+        disposables.add(emailValidated
+                .subscribe(validableField -> {
+                    if (!validableField.isValid())
+                        mEmailView.setError(validableField.getError().getMessage());
                 }));
+
+        disposables.add(passwordValidated
+                .subscribe(validableField -> {
+                    if (!validableField.isValid())
+                        mPasswordView.setError(validableField.getError().getMessage());
+                }));
+
+        disposables.add(usernameValidated
+                .subscribe(validableField -> {
+                    if (!validableField.isValid())
+                        mUsernameView.setError(validableField.getError().getMessage());
+                }));
+
+        disposables.add(RxView.clicks(findViewById(R.id.register_button)).flatMap((Object o) -> Observable.zip(
+                emailValidated,
+                passwordValidated,
+                usernameValidated,
+                (e, p, u) -> {
+                    ValidableForm form = new ValidableForm();
+                    form.addField(RegisterFields.EMAIL_FIELD, e);
+                    form.addField(RegisterFields.PASSWORD_FIELD, p);
+                    form.addField(RegisterFields.USERNAME_FIELD, u);
+                    return form;
+                }))
+                .firstElement()
+                .subscribe(form -> {
+                    if (form.isValid()) {
+                        Log.d("VALIDATION", "IS VALID");
+                        attemptRegister(form);
+                    } else
+                        Log.d("VALIDATION", "IS INVALID");
+                }));
+
     }
 
     /**
@@ -119,7 +130,7 @@ public class LoginActivity extends Activity {
      * If there are form errors (invalid email, missing fields, etc.), the
      * errors are presented and no actual login attempt is made.
      */
-    private void attemptLogin(ValidableForm form) {
+    private void attemptRegister(ValidableForm form) {
 
         // Reset errors.
         mEmailView.setError(null);
@@ -128,21 +139,24 @@ public class LoginActivity extends Activity {
         disposables.add(Observable.just(form)
                 .flatMapMaybe(validableForm -> {
                     showProgress(true);
-                    String email = validableForm.getValue(LoginFields.EMAIL).toString();
-                    String password = validableForm.getValue(LoginFields.PASSWORD).toString();
+                    String email = validableForm.getValue(RegisterFields.EMAIL_FIELD).toString();
+                    String password = validableForm.getValue(RegisterFields.PASSWORD_FIELD).toString();
 
                     // create user via auth service
-                    return RxFirebaseAuth.signInWithEmailAndPassword(FirebaseAuth.getInstance(), email, password);
+                    return RxFirebaseAuth.createUserWithEmailAndPassword(FirebaseAuth.getInstance(), email, password);
                 })
                 .flatMapMaybe(authResult -> User.getMaybe())
+                .flatMapMaybe(user -> {
+                    user.createProperties();
+                    user.properties.username = form.getValue(RegisterFields.USERNAME_FIELD).toString();
+                    return user.commitProperties();
+                })
                 .subscribe(userProperties -> finish(),
                         error -> {
-                            if (error instanceof FirebaseAuthInvalidUserException) {
-                                mEmailView.setError(getString(R.string.error_user_does_not_exist));
-                                mEmailView.requestFocus();
-                            } else if (error instanceof FirebaseAuthInvalidCredentialsException) {
-                                mPasswordView.setError(getString(R.string.error_incorrect_password));
-                                mPasswordView.requestFocus();
+                            if (error instanceof FirebaseAuthInvalidCredentialsException) {
+                                mEmailView.setError(error.getMessage());
+                            } else if (error.getMessage().contains("WEAK_PASSWORD")) {
+                                mPasswordView.setError("Password is too weak");
                             } else {
                                 mEmailView.setError(error.getMessage());
                             }
@@ -156,12 +170,12 @@ public class LoginActivity extends Activity {
     private void showProgress(final boolean show) {
         int shortAnimTime = getResources().getInteger(android.R.integer.config_shortAnimTime);
 
-        mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
-        mLoginFormView.animate().setDuration(shortAnimTime).alpha(
+        mRegisterFormView.setVisibility(show ? View.GONE : View.VISIBLE);
+        mRegisterFormView.animate().setDuration(shortAnimTime).alpha(
                 show ? 0 : 1).setListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
+                mRegisterFormView.setVisibility(show ? View.GONE : View.VISIBLE);
             }
         });
 
