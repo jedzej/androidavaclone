@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
 
         // Observe User
         disposables.add(
-                User.getObservableWithProperties()
+                User.getUserWithProperties()
                         .subscribe(
                                 user -> {
                                     Log.d(TAG, "User logged in " + user.properties.username);

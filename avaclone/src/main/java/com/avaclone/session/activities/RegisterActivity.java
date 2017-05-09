@@ -12,11 +12,13 @@ import android.widget.EditText;
 
 import com.avaclone.R;
 import com.avaclone.session.User;
+import com.avaclone.session.UserProperties;
 import com.avaclone.utils.forms.ValidableField;
 import com.avaclone.utils.forms.ValidableForm;
 import com.avaclone.utils.forms.ValidationFailedException;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
+import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxTextView;
 
@@ -114,7 +116,6 @@ public class RegisterActivity extends Activity {
                     form.addField(RegisterFields.USERNAME_FIELD, u);
                     return form;
                 }))
-                .firstElement()
                 .subscribe(form -> {
                     if (form.isValid()) {
                         Log.d("VALIDATION", "IS VALID");
@@ -135,23 +136,26 @@ public class RegisterActivity extends Activity {
         // Reset errors.
         mEmailView.setError(null);
         mPasswordView.setError(null);
+        mUsernameView.setError(null);
 
         disposables.add(Observable.just(form)
                 .flatMapMaybe(validableForm -> {
                     showProgress(true);
-                    String email = validableForm.getValue(RegisterFields.EMAIL_FIELD).toString();
-                    String password = validableForm.getValue(RegisterFields.PASSWORD_FIELD).toString();
+                    String email = form.getValue(RegisterFields.EMAIL_FIELD).toString();
+                    String password = form.getValue(RegisterFields.PASSWORD_FIELD).toString();
 
                     // create user via auth service
-                    return RxFirebaseAuth.createUserWithEmailAndPassword(FirebaseAuth.getInstance(), email, password);
+                    return User.createWithEmailAndPassword(email, password);
                 })
-                .flatMapMaybe(authResult -> User.getMaybe())
-                .flatMapMaybe(user -> {
-                    user.createProperties();
-                    user.properties.username = form.getValue(RegisterFields.USERNAME_FIELD).toString();
-                    return user.commitProperties();
+                .flatMapCompletable(firebaseUser -> {
+                    UserProperties properties = new UserProperties();
+                    properties.username = form.getValue(RegisterFields.USERNAME_FIELD).toString();
+                    properties.userId = firebaseUser.getUid();
+
+                    // set properties
+                    return User.setProperties(firebaseUser.getUid(), properties);
                 })
-                .subscribe(userProperties -> finish(),
+                .subscribe(() -> finish(),
                         error -> {
                             if (error instanceof FirebaseAuthInvalidCredentialsException) {
                                 mEmailView.setError(error.getMessage());

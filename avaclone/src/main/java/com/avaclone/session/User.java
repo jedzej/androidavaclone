@@ -1,131 +1,77 @@
 package com.avaclone.session;
 
-import android.util.Log;
-
+import com.avaclone.db.FirebaseLink;
+import com.avaclone.db.FirebaseUtils;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.FirebaseException;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
 
 import durdinapps.rxfirebase2.RxFirebaseAuth;
 import durdinapps.rxfirebase2.RxFirebaseDatabase;
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
 import io.reactivex.Maybe;
 import io.reactivex.Observable;
+import io.reactivex.Single;
 
+/**
+ * Created by jedzej on 08.05.2017.
+ */
 
 public class User {
 
-    public static class UserAuthenticationError extends Exception {
-        UserAuthenticationError(){
-            super("Not signed in");
-        }
-    }
-
-    private final FirebaseUser firebaseUser;
-    public UserProperties properties;
-
-    private boolean isSignedIn(){
-        return firebaseUser != null;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public String getUid(){
-        if(isSignedIn())
-            return firebaseUser.getUid();
-        else
-            return null;
-    }
-
-    private User(FirebaseUser firebaseUser){
-        this.firebaseUser = firebaseUser;
-    }
-
-    public void createProperties() {
-        properties = new UserProperties();
-    }
-
-    public static Maybe<User> getMaybe(){
-        return RxFirebaseAuth.observeAuthState(FirebaseAuth.getInstance()).firstElement()
-                .flatMap(firebaseAuth -> Maybe.create(maybeEmitter -> {
-                    User user = new User(firebaseAuth.getCurrentUser());
-                    if(user.isSignedIn())
-                        maybeEmitter.onSuccess(user);
-                    else
-                        maybeEmitter.onError(new FirebaseAuthException("Not signed in",""));
-                }));
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public static Observable<User> getObservable(){
-        return RxFirebaseAuth.observeAuthState(FirebaseAuth.getInstance())
-                .doOnNext(firebaseAuth -> Log.d("FIREBASE", "AUTH EVENT" + firebaseAuth.getCurrentUser()))
-                .doOnSubscribe(firebaseAuth -> Log.d("FIREBASE", "AUTH SUBSCRIBE"))
-                .map(firebaseAuth -> new User(firebaseAuth.getCurrentUser()));
+    private static DatabaseReference getPropertiesRef(String userId){
+        return FirebaseLink.getRoot().child("userProperties").child(userId);
     }
 
 
-    private DatabaseReference getPropertiesRef(){
-        if(isSignedIn())
-            return FirebaseDatabase.getInstance().getReference().child("userProperties").child(getUid());
-        else
-            return null;
+    public static Completable setProperties(String userId, UserProperties properties){
+        return FirebaseUtils.CompletableFromTask(getPropertiesRef(userId).setValue(properties));
     }
 
-    @SuppressWarnings("WeakerAccess")
-    public Observable<UserProperties> getPropertiesObservable(){
-        if(getPropertiesRef() != null)
-            return RxFirebaseDatabase.observeValueEvent(getPropertiesRef())
-                .toObservable()
-                .map(dataSnapshot -> {
-                    if(dataSnapshot.exists()){
-                        return dataSnapshot.getValue(UserProperties.class);
-                    }
-                    else {
-                        return new UserProperties();
-                    }
-                });
-        else
-            return Observable.error(new UserAuthenticationError());
-    }
-
-    public Maybe<UserProperties> commitProperties(){
-        return Maybe.create(maybeEmitter -> {
-            if(getPropertiesRef() == null) {
-                maybeEmitter.onError(new UserAuthenticationError());
+    public static Observable<UserProperties> getObservableProperties(String userId){
+        return RxFirebaseDatabase.observeValueEvent(getPropertiesRef(userId), dataSnapshot -> {
+            if(dataSnapshot.exists()){
+                return dataSnapshot.getValue(UserProperties.class);
             }
-            else if(properties == null){
-                maybeEmitter.onError(new NullPointerException("Properties not set"));
+            else{
+                throw new FirebaseException("User Properties not present");
             }
-            else {
-                getPropertiesRef().setValue(properties, (databaseError, databaseReference) -> {
-                    Log.d("COMMIT", "LISTENER");
-                    if (databaseError == null)
-                        maybeEmitter.onSuccess(properties);
-                    else
-                        maybeEmitter.onError(databaseError.toException());
-                });
-            }
-        });
+        }).toObservable();
     }
 
-    public static Observable<User> getObservableWithProperties(){
+    public static Single<UserProperties> getSingleProperties(String userId){
+        return getObservableProperties(userId).firstOrError();
+    }
+
+    public static Observable<FirebaseUser> signInWithEmailAndPassword(String email, String password){
+        return RxFirebaseAuth.signInWithEmailAndPassword(FirebaseAuth.getInstance(), email, password)
+                .flatMapObservable(authResult -> User.getObservableUser());
+    }
+
+    public static Observable<UserWithProperties> getUserWithProperties(){
         return Observable.combineLatest(
-                getObservable(),
-                getObservable().flatMap(User::getPropertiesObservable),
-                (user, userProperties) -> {
-                    if(!user.isSignedIn()) {
-                        throw new UserAuthenticationError();
-                    }
-                    else {
-                        user.properties = userProperties;
-                        return user;
-                    }
-                }
+                getObservableUser(),
+                getObservableUser().flatMap(firebaseUser -> getObservableProperties(firebaseUser.getUid())),
+                (firebaseUser, userProperties) -> new UserWithProperties(firebaseUser, userProperties)
         );
     }
 
-    public Maybe<User> getMaybeWithProperties(){
-        return getObservableWithProperties().firstElement();
+    public static Maybe<FirebaseUser> createWithEmailAndPassword(String email, String password){
+        return RxFirebaseAuth.createUserWithEmailAndPassword(FirebaseAuth.getInstance(), email, password)
+                .map(authResult -> {
+                    if(authResult.getUser() != null)
+                        return authResult.getUser();
+                    else
+                        throw new FirebaseException("User not created");
+                });
+    }
+
+    public static Observable<FirebaseUser> getObservableUser(){
+        return RxFirebaseAuth.observeAuthState(FirebaseAuth.getInstance())
+                .map(firebaseAuth -> firebaseAuth.getCurrentUser());
     }
 }

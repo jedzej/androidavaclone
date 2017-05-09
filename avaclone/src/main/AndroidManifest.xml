@@ -31,6 +31,10 @@
         <activity
             android:name=".session.activities.RegisterActivity"
             android:label="@string/title_activity_register" />
+        <activity
+            android:name=".session.activities.NoLobbyActivity"
+            android:label="@string/title_activity_lobby"
+            android:theme="@style/AppTheme"></activity>
     </application>
 
 </manifest>

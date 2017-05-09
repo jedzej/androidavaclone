@@ -46,6 +46,8 @@ public class LoginActivity extends Activity {
     private EditText mPasswordView;
     private View mProgressView;
     private View mLoginFormView;
+    private View mSignInButton;
+    private View mGoToRegistrationButton;
 
     private final CompositeDisposable disposables = new CompositeDisposable();
 
@@ -58,6 +60,8 @@ public class LoginActivity extends Activity {
         mPasswordView = (EditText) findViewById(R.id.password);
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
+        mSignInButton = findViewById(R.id.sign_in_button);
+        mGoToRegistrationButton = findViewById(R.id.go_to_registration_button);
     }
 
 
@@ -88,18 +92,28 @@ public class LoginActivity extends Activity {
                 );
 
         // check if user is logged in
-        disposables.add(User.getMaybe().subscribe(user ->finish(),
+        disposables.add(User.getObservableUser().subscribe(user ->finish(),
                 error -> {
                     // if no user subscribe for login attempts
-                    RxView.clicks(findViewById(R.id.sign_in_button)).subscribe((Object o) -> Observable.zip(
+                    RxView.clicks(mSignInButton).subscribe((Object o) -> Observable.zip(
                             emailValidated,
                             passwordValidated,
                             (e,p) -> {
                                 ValidableForm form = new ValidableForm();
                                 form.addField(LoginFields.EMAIL, e);
                                 form.addField(LoginFields.PASSWORD, p);
+
+                                if(!e.isValid()){
+                                    mEmailView.setError(e.getError().getMessage());
+                                    mEmailView.requestFocus();
+                                }
+                                if(!p.isValid()){
+                                    mPasswordView.setError(p.getError().getMessage());
+                                    mPasswordView.requestFocus();
+                                }
                                 return form;
                             })
+                            .firstOrError()
                             .subscribe(form -> {
                                 if(form.isValid()){
                                     attemptLogin(form);
@@ -107,7 +121,7 @@ public class LoginActivity extends Activity {
                             }));
 
                     // subscribe for registration request
-                    disposables.add(RxView.clicks(findViewById(R.id.go_to_registration_button)).subscribe(o -> {
+                    disposables.add(RxView.clicks(mGoToRegistrationButton).subscribe(o -> {
                         Intent intent = new Intent(this, RegisterActivity.class);
                         startActivity(intent);
                     }));
@@ -126,15 +140,14 @@ public class LoginActivity extends Activity {
         mPasswordView.setError(null);
 
         disposables.add(Observable.just(form)
-                .flatMapMaybe(validableForm -> {
+                .flatMap(validableForm -> {
                     showProgress(true);
                     String email = validableForm.getValue(LoginFields.EMAIL).toString();
                     String password = validableForm.getValue(LoginFields.PASSWORD).toString();
 
                     // create user via auth service
-                    return RxFirebaseAuth.signInWithEmailAndPassword(FirebaseAuth.getInstance(), email, password);
+                    return User.signInWithEmailAndPassword(email, password);
                 })
-                .flatMapMaybe(authResult -> User.getMaybe())
                 .subscribe(userProperties -> finish(),
                         error -> {
                             if (error instanceof FirebaseAuthInvalidUserException) {
