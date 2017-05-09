@@ -35,7 +35,7 @@ public class NoLobbyActivity extends Activity {
         super.onResume();
 
         // check if user is logged in
-        User.getUserWithProperties()
+        disposables.add(User.getUserWithProperties()
                 .map(userWithProperties -> {
                     if(userWithProperties.properties.lobbyId != null)
                         throw new Lobby.LobbyError("Already in a lobby");
@@ -43,13 +43,17 @@ public class NoLobbyActivity extends Activity {
                         return userWithProperties;
                 }).subscribe(userWithProperties -> {
                     RxView.clicks(mButtonLobbyCreateView)
-                            .firstOrError()
-                            .flatMap(o -> Lobby.create(userWithProperties.properties))
+                            .flatMapSingle(o -> Lobby.create(userWithProperties.properties))
                             .subscribe(lobby -> {
                                 Log.d("LOBBY","Lobby created");
                             });
                 },
-                error ->finish());
+                error ->finish()));
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        disposables.clear();
+    }
 }

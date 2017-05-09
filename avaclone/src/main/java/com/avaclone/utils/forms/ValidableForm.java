@@ -29,4 +29,8 @@ public class ValidableForm extends HashMap<Object,ValidableField> {
         }
         return true;
     }
+
+    public boolean isValid(Object field){
+        return get(field).isValid();
+    }
 }

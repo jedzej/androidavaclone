@@ -20,7 +20,8 @@
     <string name="email">Email</string>
     <string name="password">Password</string>
     <string name="username">Username</string>
-    <string name="title_activity_lobby">LobbyActivity</string>
+    <string name="title_activity_lobby">You\'re in a lobby</string>
+    <string name="title_activity_no_lobby">Create or join a lobby</string>
 
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>

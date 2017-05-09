@@ -25,6 +25,7 @@ import com.jakewharton.rxbinding2.widget.RxTextView;
 
 import durdinapps.rxfirebase2.RxFirebaseAuth;
 import io.reactivex.Observable;
+import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 
 /**
@@ -70,7 +71,7 @@ public class LoginActivity extends Activity {
         super.onResume();
 
         // email validated observable
-        Observable<ValidableField> emailValidated = RxTextView.textChangeEvents(mEmailView)
+        Single<ValidableField> emailValidated = RxTextView.textChangeEvents(mEmailView).firstOrError()
                 .map(emailChanged ->
                         new ValidableField<>(emailChanged.text().toString(), email -> {
                             if (TextUtils.isEmpty(email))
@@ -81,7 +82,7 @@ public class LoginActivity extends Activity {
                 );
 
         // password validated observable
-        Observable<ValidableField> passwordValidated = RxTextView.textChangeEvents(mPasswordView)
+        Single<ValidableField> passwordValidated = RxTextView.textChangeEvents(mPasswordView).firstOrError()
                 .map(passwordChanged ->
                         new ValidableField<>(passwordChanged.text(), password -> {
                             if (TextUtils.isEmpty(password))
@@ -92,33 +93,32 @@ public class LoginActivity extends Activity {
                 );
 
         // check if user is logged in
-        disposables.add(User.getObservableUser().subscribe(user ->finish(),
+        disposables.add(User.getObservableUser().subscribe(user -> finish(),
                 error -> {
                     // if no user subscribe for login attempts
-                    RxView.clicks(mSignInButton).subscribe((Object o) -> Observable.zip(
-                            emailValidated,
-                            passwordValidated,
-                            (e,p) -> {
-                                ValidableForm form = new ValidableForm();
-                                form.addField(LoginFields.EMAIL, e);
-                                form.addField(LoginFields.PASSWORD, p);
-
-                                if(!e.isValid()){
-                                    mEmailView.setError(e.getError().getMessage());
-                                    mEmailView.requestFocus();
-                                }
-                                if(!p.isValid()){
-                                    mPasswordView.setError(p.getError().getMessage());
-                                    mPasswordView.requestFocus();
-                                }
-                                return form;
-                            })
-                            .firstOrError()
+                    RxView.clicks(mSignInButton)
+                            .flatMapSingle((Object o) -> Single.zip(
+                                    emailValidated,
+                                    passwordValidated,
+                                    (e, p) -> {
+                                        ValidableForm form = new ValidableForm();
+                                        form.addField(LoginFields.EMAIL, e);
+                                        form.addField(LoginFields.PASSWORD, p);
+                                        if (!e.isValid()) {
+                                            mEmailView.setError(e.getError().getMessage());
+                                            mEmailView.requestFocus();
+                                        }
+                                        if (!p.isValid()) {
+                                            mPasswordView.setError(p.getError().getMessage());
+                                            mPasswordView.requestFocus();
+                                        }
+                                        return form;
+                                    }))
                             .subscribe(form -> {
-                                if(form.isValid()){
+                                if (form.isValid()) {
                                     attemptLogin(form);
                                 }
-                            }));
+                            });
 
                     // subscribe for registration request
                     disposables.add(RxView.clicks(mGoToRegistrationButton).subscribe(o -> {

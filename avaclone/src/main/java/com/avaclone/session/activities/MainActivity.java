@@ -45,8 +45,16 @@ public class MainActivity extends Activity {
                 User.getUserWithProperties()
                         .subscribe(
                                 user -> {
-                                    Log.d(TAG, "User logged in " + user.properties.username);
-                                    setTitle("AvaClone: " + user.properties.username);
+                                    if(user.properties.lobbyId == null){
+                                        Intent intent = new Intent(this, NoLobbyActivity.class);
+                                        startActivity(intent);
+                                    }
+                                    else {
+                                        Intent intent = new Intent(this, LobbyActivity.class);
+                                        startActivity(intent);
+                                        /*Log.d(TAG, "User logged in " + user.properties.username);
+                                        setTitle("AvaClone: " + user.properties.username);*/
+                                    }
                                 },
                                 error -> {
                                     Intent intent = new Intent(this, LoginActivity.class);
