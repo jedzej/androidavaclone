@@ -7,14 +7,9 @@ import android.view.View;
 import android.widget.EditText;
 
 import com.avaclone.R;
-import com.avaclone.session.Lobby;
-import com.avaclone.session.LobbyProperties;
-import com.avaclone.session.User;
-import com.avaclone.session.UserProperties;
-import com.avaclone.session.UserWithProperties;
-import com.jakewharton.rxbinding2.view.RxView;
-
-import java.util.List;
+import com.avaclone.session.lobby.LobbyStore;
+import com.avaclone.session.lobby.Lobby;
+import com.avaclone.session.user.UserProperties;
 
 import io.reactivex.Observable;
 import io.reactivex.disposables.CompositeDisposable;
@@ -45,15 +40,15 @@ public class LobbyActivity extends Activity {
 
     }
 
-    private Observable<LobbyProperties> observeLobby() {
-        return User.getUserWithProperties().flatMap(u -> Lobby.getObservable(u.properties));
+    private Observable<Lobby> observeLobby() {
+        return UserOld.getUserWithProperties().flatMap(u -> LobbyStore.getObservable(u.properties));
     }
 
     private Observable<Observable<UserProperties>> observeUsers() {
         return observeLobby()
-                .map(lobbyProperties -> Observable.defer(() -> Observable.fromIterable(lobbyProperties.usersIds))
-                        .flatMap(userIdObservable -> User.getObservableProperties(userIdObservable))
-                        .take(lobbyProperties.usersIds.size())
+                .map(lobby -> Observable.defer(() -> Observable.fromIterable(lobby.usersIds))
+                        .flatMap(userIdObservable -> UserOld.getObservableProperties(userIdObservable))
+                        .take(lobby.usersIds.size())
                 );
     }
 
@@ -61,7 +56,7 @@ public class LobbyActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Observable<Boolean> isLeaderObservable = Observable.combineLatest(
-                User.getUserWithProperties(),
+                UserOld.getUserWithProperties(),
                 observeLobby(),
                 (u, l) -> u.properties.userId.equals(l.leaderId));
 
@@ -78,8 +73,8 @@ public class LobbyActivity extends Activity {
 
     private void initCommon() {
         observeLobby().subscribe(
-                lobbyProperties -> {
-                    mEditTextLobbyIdView.setText(lobbyProperties.leaderId);
+                lobby -> {
+                    mEditTextLobbyIdView.setText(lobby.leaderId);
                     observeUsers()
                             .subscribe(userPropertiesIterable -> {
                                 userPropertiesIterable.subscribe(

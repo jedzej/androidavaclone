@@ -11,18 +11,14 @@ import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 
 import com.avaclone.R;
-import com.avaclone.session.User;
-import com.avaclone.session.UserProperties;
+import com.avaclone.session.user.UserProperties;
 import com.avaclone.utils.forms.ValidableField;
 import com.avaclone.utils.forms.ValidableForm;
 import com.avaclone.utils.forms.ValidationFailedException;
-import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
-import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxTextView;
 
-import durdinapps.rxfirebase2.RxFirebaseAuth;
 import io.reactivex.Observable;
 import io.reactivex.disposables.CompositeDisposable;
 
@@ -145,7 +141,7 @@ public class RegisterActivity extends Activity {
                     String password = form.getValue(RegisterFields.PASSWORD_FIELD).toString();
 
                     // create user via auth service
-                    return User.createWithEmailAndPassword(email, password);
+                    return UserOld.createWithEmailAndPassword(email, password);
                 })
                 .flatMapCompletable(firebaseUser -> {
                     UserProperties properties = new UserProperties();
@@ -153,7 +149,7 @@ public class RegisterActivity extends Activity {
                     properties.userId = firebaseUser.getUid();
 
                     // set properties
-                    return User.setProperties(firebaseUser.getUid(), properties);
+                    return UserOld.setProperties(firebaseUser.getUid(), properties);
                 })
                 .subscribe(() -> finish(),
                         error -> {

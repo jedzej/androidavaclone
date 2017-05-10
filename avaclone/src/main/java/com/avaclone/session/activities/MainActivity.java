@@ -16,10 +16,9 @@ package com.avaclone.session.activities;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 
 import com.avaclone.R;
-import com.avaclone.session.User;
+import com.avaclone.session.Session;
 import com.google.firebase.auth.FirebaseAuth;
 import com.jakewharton.rxbinding2.view.RxView;
 
@@ -40,26 +39,23 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
-        // Observe User
+        // Observe session
         disposables.add(
-                User.getUserWithProperties()
-                        .subscribe(
-                                user -> {
-                                    if(user.properties.lobbyId == null){
-                                        Intent intent = new Intent(this, NoLobbyActivity.class);
-                                        startActivity(intent);
-                                    }
-                                    else {
-                                        Intent intent = new Intent(this, LobbyActivity.class);
-                                        startActivity(intent);
-                                        /*Log.d(TAG, "User logged in " + user.properties.username);
-                                        setTitle("AvaClone: " + user.properties.username);*/
-                                    }
-                                },
-                                error -> {
-                                    Intent intent = new Intent(this, LoginActivity.class);
-                                    startActivity(intent);
-                                }));
+                Session.getObservable()
+                .subscribe(session -> {
+                    if(session.isInLobby()) {
+                        Intent intent = new Intent(this, LobbyActivity.class);
+                        startActivity(intent);
+                    }
+                    else if(session.isSignedIn()) {
+                        Intent intent = new Intent(this, NoLobbyActivity.class);
+                        startActivity(intent);
+                    }
+                    else {
+                        Intent intent = new Intent(this, LoginActivity.class);
+                        startActivity(intent);
+                    }
+                }));
 
         // Observe sign out clicks
         disposables.add(RxView.clicks(findViewById(R.id.button_sign_out)).subscribe(o -> FirebaseAuth.getInstance().signOut()));

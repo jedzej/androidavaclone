@@ -12,18 +12,16 @@ import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 
 import com.avaclone.R;
-import com.avaclone.session.User;
+import com.avaclone.session.Session;
 import com.avaclone.utils.forms.ValidableField;
 import com.avaclone.utils.forms.ValidableForm;
 import com.avaclone.utils.forms.ValidationFailedException;
-import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxTextView;
 
 
-import durdinapps.rxfirebase2.RxFirebaseAuth;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
@@ -93,7 +91,7 @@ public class LoginActivity extends Activity {
                 );
 
         // check if user is logged in
-        disposables.add(User.getObservableUser().subscribe(user -> finish(),
+        disposables.add(Session.getObservable().subscribe(user -> finish(),
                 error -> {
                     // if no user subscribe for login attempts
                     RxView.clicks(mSignInButton)
@@ -146,7 +144,7 @@ public class LoginActivity extends Activity {
                     String password = validableForm.getValue(LoginFields.PASSWORD).toString();
 
                     // create user via auth service
-                    return User.signInWithEmailAndPassword(email, password);
+                    return UserOld.signInWithEmailAndPassword(email, password);
                 })
                 .subscribe(userProperties -> finish(),
                         error -> {

@@ -1,6 +1,7 @@
 package com.avaclone.session;
 
 
+import com.avaclone.session.user.UserProperties;
 import com.google.firebase.auth.FirebaseUser;
 
 /**

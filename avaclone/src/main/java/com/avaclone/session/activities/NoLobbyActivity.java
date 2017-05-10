@@ -7,8 +7,7 @@ import android.view.View;
 import android.widget.EditText;
 
 import com.avaclone.R;
-import com.avaclone.session.Lobby;
-import com.avaclone.session.User;
+import com.avaclone.session.lobby.LobbyStore;
 import com.jakewharton.rxbinding2.view.RxView;
 
 import io.reactivex.disposables.CompositeDisposable;
@@ -35,17 +34,17 @@ public class NoLobbyActivity extends Activity {
         super.onResume();
 
         // check if user is logged in
-        disposables.add(User.getUserWithProperties()
+        disposables.add(UserOld.getUserWithProperties()
                 .map(userWithProperties -> {
                     if(userWithProperties.properties.lobbyId != null)
-                        throw new Lobby.LobbyError("Already in a lobby");
+                        throw new LobbyStore.LobbyError("Already in a lobby");
                     else
                         return userWithProperties;
                 }).subscribe(userWithProperties -> {
                     RxView.clicks(mButtonLobbyCreateView)
-                            .flatMapSingle(o -> Lobby.create(userWithProperties.properties))
+                            .flatMapSingle(o -> LobbyStore.create(userWithProperties.properties))
                             .subscribe(lobby -> {
-                                Log.d("LOBBY","Lobby created");
+                                Log.d("LOBBY","LobbyStore created");
                             });
                 },
                 error ->finish()));
