@@ -71,6 +71,15 @@ tools:context="com.avaclone.session.activities.NoLobbyActivity">
             android:text="Join"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/no_lobby_button_sign_out"
+            style="?android:textAppearanceSmall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Sign out"
+            android:textStyle="bold" />
+
     </LinearLayout>
 </ScrollView>
 

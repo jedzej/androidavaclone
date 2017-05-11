@@ -11,27 +11,32 @@ import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 
 import com.avaclone.R;
+import com.avaclone.session.Session;
+import com.avaclone.session.user.User;
 import com.avaclone.session.user.UserProperties;
 import com.avaclone.utils.forms.ValidableField;
 import com.avaclone.utils.forms.ValidableForm;
 import com.avaclone.utils.forms.ValidationFailedException;
+import com.avaclone.utils.forms.fields.EmailValidator;
+import com.avaclone.utils.forms.fields.NonEmptyValidator;
+import com.avaclone.utils.forms.fields.PasswordValidator;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxTextView;
 
+import java.util.HashMap;
+
+import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.schedulers.Schedulers;
 
 /**
  * A login screen that offers login via email/password.
  */
 public class RegisterActivity extends Activity {
-    enum RegisterFields {
-        EMAIL_FIELD,
-        PASSWORD_FIELD,
-        USERNAME_FIELD
-    }
-
+    private final CompositeDisposable disposables = new CompositeDisposable();
     // UI references.
     private AutoCompleteTextView mEmailView;
     private EditText mUsernameView;
@@ -39,87 +44,84 @@ public class RegisterActivity extends Activity {
     private View mProgressView;
     private View mRegisterFormView;
 
-    private final CompositeDisposable disposables = new CompositeDisposable();
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
+
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
-
         mPasswordView = (EditText) findViewById(R.id.password);
-
         mUsernameView = (EditText) findViewById(R.id.username);
-
         mRegisterFormView = findViewById(R.id.register_form);
         mProgressView = findViewById(R.id.register_progress);
 
-        Observable<ValidableField> emailValidated = RxTextView.textChangeEvents(mEmailView)
-                .map(emailChanged ->
-                        new ValidableField<>(emailChanged.text().toString(), email -> {
-                            if (TextUtils.isEmpty(email))
-                                throw new ValidationFailedException(getString(R.string.error_field_required));
-                            else if (!email.contains("@"))
-                                throw new ValidationFailedException(getString(R.string.error_invalid_email));
-                        })
-                );
+        disposables.add(Session.getObservable().subscribe(
+                session -> {
+                    if (session.isSignedIn()) {
+                        finish();
+                    } else {
+                        initialize();
+                    }
+                }
+        ));
+    }
 
-        Observable<ValidableField> passwordValidated = RxTextView.textChangeEvents(mPasswordView)
-                .map(passwordChanged ->
-                        new ValidableField<>(passwordChanged.text(), password -> {
-                            if (TextUtils.isEmpty(password))
-                                throw new ValidationFailedException(getString(R.string.error_field_required));
-                            else if (password.length() < 4)
-                                throw new ValidationFailedException(getString(R.string.error_invalid_password));
-                        })
-                );
+    private void initialize() {
+        disposables.add(
+                RxView.clicks(findViewById(R.id.register_button))
+                        .withLatestFrom(getForm().doOnNext(this::propagateErrors),
+                                (o, validableForm) -> validableForm)
+                        // pass though only valid form
+                        .filter(validableForm -> validableForm.isValid())
+                        .subscribe(form -> attemptRegister(form)));
+    }
 
-        Observable<ValidableField> usernameValidated = RxTextView.textChangeEvents(mUsernameView)
-                .map(usernameChanged ->
-                        new ValidableField<>(usernameChanged.text(), username -> {
-                            if (TextUtils.isEmpty(username))
-                                throw new ValidationFailedException(getString(R.string.error_field_required));
-                        })
-                );
+    private Observable<ValidableField> getPasswordObservable() {
+        return RxTextView.textChangeEvents(mPasswordView)
+                .map(view -> view.text().toString())
+                .map(password -> new ValidableField(password, new PasswordValidator()));
+    }
 
-        disposables.add(emailValidated
-                .subscribe(validableField -> {
-                    if (!validableField.isValid())
-                        mEmailView.setError(validableField.getError().getMessage());
-                }));
+    private Observable<ValidableField> getEmailObservable() {
+        return RxTextView.textChangeEvents(mEmailView)
+                .map(view -> view.text().toString())
+                .map(email -> new ValidableField(email, new EmailValidator()));
+    }
 
-        disposables.add(passwordValidated
-                .subscribe(validableField -> {
-                    if (!validableField.isValid())
-                        mPasswordView.setError(validableField.getError().getMessage());
-                }));
+    private Observable<ValidableField> getUsernameObservable() {
+        return RxTextView.textChangeEvents(mUsernameView)
+                .map(view -> view.text().toString())
+                .map(username -> new ValidableField(username, new NonEmptyValidator()));
+    }
 
-        disposables.add(usernameValidated
-                .subscribe(validableField -> {
-                    if (!validableField.isValid())
-                        mUsernameView.setError(validableField.getError().getMessage());
-                }));
-
-        disposables.add(RxView.clicks(findViewById(R.id.register_button)).flatMap((Object o) -> Observable.zip(
-                emailValidated,
-                passwordValidated,
-                usernameValidated,
+    private Observable<ValidableForm> getForm() {
+        return Observable.combineLatest(
+                getEmailObservable(),
+                getPasswordObservable(),
+                getUsernameObservable(),
                 (e, p, u) -> {
                     ValidableForm form = new ValidableForm();
                     form.addField(RegisterFields.EMAIL_FIELD, e);
                     form.addField(RegisterFields.PASSWORD_FIELD, p);
                     form.addField(RegisterFields.USERNAME_FIELD, u);
                     return form;
-                }))
-                .subscribe(form -> {
-                    if (form.isValid()) {
-                        Log.d("VALIDATION", "IS VALID");
-                        attemptRegister(form);
-                    } else
-                        Log.d("VALIDATION", "IS INVALID");
-                }));
+                });
+    }
 
+    private void propagateErrors(ValidableForm validableForm) {
+        validableForm.getField(RegisterFields.EMAIL_FIELD).validate((Throwable e) -> {
+            mEmailView.setError(e.getMessage());
+            //mEmailView.requestFocus();
+        });
+        validableForm.getField(RegisterFields.PASSWORD_FIELD).validate((Throwable e) -> {
+            mPasswordView.setError(e.getMessage());
+            //mPasswordView.requestFocus();
+        });
+        validableForm.getField(RegisterFields.USERNAME_FIELD).validate((Throwable e) -> {
+            mUsernameView.setError(e.getMessage());
+            //mUsernameView.requestFocus();
+        });
     }
 
     /**
@@ -129,39 +131,35 @@ public class RegisterActivity extends Activity {
      */
     private void attemptRegister(ValidableForm form) {
 
-        // Reset errors.
+        // Reset errors
         mEmailView.setError(null);
         mPasswordView.setError(null);
         mUsernameView.setError(null);
 
-        disposables.add(Observable.just(form)
-                .flatMapMaybe(validableForm -> {
-                    showProgress(true);
-                    String email = form.getValue(RegisterFields.EMAIL_FIELD).toString();
-                    String password = form.getValue(RegisterFields.PASSWORD_FIELD).toString();
+        showProgress(true);
 
-                    // create user via auth service
-                    return UserOld.createWithEmailAndPassword(email, password);
-                })
-                .flatMapCompletable(firebaseUser -> {
-                    UserProperties properties = new UserProperties();
-                    properties.username = form.getValue(RegisterFields.USERNAME_FIELD).toString();
-                    properties.userId = firebaseUser.getUid();
+        String email = form.getValue(RegisterFields.EMAIL_FIELD).toString();
+        String password = form.getValue(RegisterFields.PASSWORD_FIELD).toString();
+        String username = form.getValue(RegisterFields.USERNAME_FIELD).toString();
 
-                    // set properties
-                    return UserOld.setProperties(firebaseUser.getUid(), properties);
-                })
-                .subscribe(() -> finish(),
-                        error -> {
-                            if (error instanceof FirebaseAuthInvalidCredentialsException) {
-                                mEmailView.setError(error.getMessage());
-                            } else if (error.getMessage().contains("WEAK_PASSWORD")) {
-                                mPasswordView.setError("Password is too weak");
-                            } else {
-                                mEmailView.setError(error.getMessage());
-                            }
-                            showProgress(false);
-                        }));
+        disposables.add(
+                Session.createUser(email, password)
+                        .andThen(Session.createUserProperties(username))
+                        .subscribe(() -> {
+                                    Log.i("REGISTER ACTIVITY", "User " + username + " created");
+                                },
+                                error -> {
+                                    Log.i("REGISTER ACTIVITY", "User " + username + " not created");
+                                    Log.i("REGISTER ACTIVITY", error.getMessage());
+                                    if (error instanceof FirebaseAuthInvalidCredentialsException) {
+                                        mEmailView.setError(error.getMessage());
+                                    } else if (error.getMessage().contains("WEAK_PASSWORD")) {
+                                        mPasswordView.setError("Password is too weak");
+                                    } else {
+                                        mEmailView.setError(error.getMessage());
+                                    }
+                                    showProgress(false);
+                                }));
     }
 
     /**
@@ -193,6 +191,12 @@ public class RegisterActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         disposables.clear();
+    }
+
+    enum RegisterFields {
+        EMAIL_FIELD,
+        PASSWORD_FIELD,
+        USERNAME_FIELD
     }
 }
 

@@ -32,14 +32,6 @@ public class UserStore {
         return FirebaseUtils.CompletableFromTask(getPropertiesRef(userId).setValue(properties));
     }
 
-    public static Completable createUser(String email, String password, UserProperties userProperties){
-        return FirebaseUtils.CompletableFromTask(FirebaseAuth.getInstance()
-                .createUserWithEmailAndPassword(email, password))
-                .andThen(getObservableUser())
-                .map(user -> user.getUid())
-                .flatMapCompletable(userId -> putProperties(userId, userProperties));
-    }
-
     private static void initializeUserPropertiesSubject(String userId) {
         if (!userPropertiesSubjectMap.containsKey(userId)) {
             // create the observable

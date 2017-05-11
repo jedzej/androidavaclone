@@ -58,7 +58,7 @@ public class MainActivity extends Activity {
                 }));
 
         // Observe sign out clicks
-        disposables.add(RxView.clicks(findViewById(R.id.button_sign_out)).subscribe(o -> FirebaseAuth.getInstance().signOut()));
+        //disposables.add(RxView.clicks(findViewById(R.id.button_sign_out)).subscribe(o -> FirebaseAuth.getInstance().signOut()));
     }
 
     @Override

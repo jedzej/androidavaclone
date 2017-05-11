@@ -7,20 +7,16 @@ import android.view.View;
 import android.widget.EditText;
 
 import com.avaclone.R;
+import com.avaclone.session.Session;
 import com.avaclone.session.lobby.LobbyStore;
 import com.avaclone.session.lobby.Lobby;
 import com.avaclone.session.user.UserProperties;
 
 import io.reactivex.Observable;
+import io.reactivex.ObservableSource;
 import io.reactivex.disposables.CompositeDisposable;
 
 public class LobbyActivity extends Activity {
-    enum RX {
-        User,
-        Lobby
-    }
-
-    ;
 
     private final CompositeDisposable disposables = new CompositeDisposable();
     private EditText mEditTextLobbyIdView;
@@ -40,51 +36,48 @@ public class LobbyActivity extends Activity {
 
     }
 
-    private Observable<Lobby> observeLobby() {
-        return UserOld.getUserWithProperties().flatMap(u -> LobbyStore.getObservable(u.properties));
-    }
-
+/*
     private Observable<Observable<UserProperties>> observeUsers() {
         return observeLobby()
                 .map(lobby -> Observable.defer(() -> Observable.fromIterable(lobby.usersIds))
                         .flatMap(userIdObservable -> UserOld.getObservableProperties(userIdObservable))
                         .take(lobby.usersIds.size())
                 );
-    }
+    }*/
 
     @Override
     protected void onResume() {
         super.onResume();
-        Observable<Boolean> isLeaderObservable = Observable.combineLatest(
-                UserOld.getUserWithProperties(),
-                observeLobby(),
-                (u, l) -> u.properties.userId.equals(l.leaderId));
 
-        disposables.add(isLeaderObservable.subscribe(isLeaderBoolean -> {
-                    initCommon();
-                    if (isLeaderBoolean) {
-                        initForLeader();
-                    } else {
-                        initForMember();
+        disposables.add(Session.getObservable().subscribe(session -> {
+                    if (!session.isInLobby())
+                        finish();
+                    else {
+                        initCommon();
+                        if (session.isLeader()) {
+                            initForLeader();
+                        } else {
+                            initForMember();
+                        }
                     }
                 },
                 error -> finish()));
     }
 
     private void initCommon() {
-        observeLobby().subscribe(
-                lobby -> {
-                    mEditTextLobbyIdView.setText(lobby.leaderId);
-                    observeUsers()
+        disposables.add(Session.getObservable().subscribe(
+                session -> {
+                    mEditTextLobbyIdView.setText(session.lobby.getId());
+                    /*observeUsers()
                             .subscribe(userPropertiesIterable -> {
                                 userPropertiesIterable.subscribe(
                                         properties -> Log.d("LOBBY MEMBERS", properties.username),
                                         throwable -> {
                                         },
                                         () -> Log.d("DONE", "DONE"));
-                            });
+                            });*/
                 }
-        );
+        ));
 
     }
 

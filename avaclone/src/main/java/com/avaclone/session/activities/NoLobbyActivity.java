@@ -7,6 +7,7 @@ import android.view.View;
 import android.widget.EditText;
 
 import com.avaclone.R;
+import com.avaclone.session.Session;
 import com.avaclone.session.lobby.LobbyStore;
 import com.jakewharton.rxbinding2.view.RxView;
 
@@ -18,6 +19,7 @@ public class NoLobbyActivity extends Activity {
     private EditText mLobbyIdView;
     private View mButtonLobbyCreateView;
     private View mButtonLobbyJoinView;
+    private View mButtonSignOut;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,6 +29,7 @@ public class NoLobbyActivity extends Activity {
         mLobbyIdView = (EditText) findViewById(R.id.edit_lobby_id);
         mButtonLobbyCreateView = findViewById(R.id.button_lobby_create);
         mButtonLobbyJoinView = findViewById(R.id.button_lobby_join);
+        mButtonSignOut = findViewById(R.id.no_lobby_button_sign_out);
     }
 
     @Override
@@ -34,20 +37,22 @@ public class NoLobbyActivity extends Activity {
         super.onResume();
 
         // check if user is logged in
-        disposables.add(UserOld.getUserWithProperties()
-                .map(userWithProperties -> {
-                    if(userWithProperties.properties.lobbyId != null)
-                        throw new LobbyStore.LobbyError("Already in a lobby");
-                    else
-                        return userWithProperties;
-                }).subscribe(userWithProperties -> {
-                    RxView.clicks(mButtonLobbyCreateView)
-                            .flatMapSingle(o -> LobbyStore.create(userWithProperties.properties))
-                            .subscribe(lobby -> {
-                                Log.d("LOBBY","LobbyStore created");
-                            });
-                },
-                error ->finish()));
+        disposables.add(Session.getObservable()
+                .subscribe(session -> {
+                            if (!session.isSignedIn() || session.isInLobby())
+                                finish();
+                            else
+                                disposables.add(RxView.clicks(mButtonLobbyCreateView)
+                                        .flatMapCompletable(o -> LobbyStore.create(session.userProperties))
+                                        .subscribe(() -> Log.d("LOBBY", "LobbyStore created"),
+                                                throwable -> Log.d("LOBBY", "LobbyStore not created: " + throwable.getMessage()))
+                                );
+                        },
+                        error -> finish()));
+
+        disposables.add(RxView.clicks(mButtonSignOut)
+                .doOnNext(o -> Log.v("NO LOBBY ACTIVITY","Sing out clicked"))
+                .subscribe(o -> Session.signOut()));
     }
 
     @Override

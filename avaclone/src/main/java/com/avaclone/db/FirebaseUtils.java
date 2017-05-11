@@ -1,5 +1,7 @@
 package com.avaclone.db;
 
+import android.util.Log;
+
 import com.google.android.gms.tasks.Task;
 
 import io.reactivex.Completable;
@@ -17,8 +19,7 @@ public class FirebaseUtils {
                             completableEmitter.onComplete();
                         else
                             completableEmitter.onError(task.getException());
-                    }
-            ).addOnFailureListener(e -> completableEmitter.onError(e));
+                    });
         });
     }
 }
