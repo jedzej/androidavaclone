@@ -6,18 +6,17 @@ import android.content.Intent;
 import android.app.Activity;
 
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.view.View;
 import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 
 import com.avaclone.R;
 import com.avaclone.session.Session;
+import com.avaclone.session.SessionManager;
 import com.avaclone.utils.forms.ValidableField;
 import com.avaclone.utils.forms.ValidableForm;
-import com.avaclone.utils.forms.ValidationFailedException;
-import com.avaclone.utils.forms.fields.EmailValidator;
-import com.avaclone.utils.forms.fields.PasswordValidator;
+import com.avaclone.utils.forms.validators.EmailValidator;
+import com.avaclone.utils.forms.validators.PasswordValidator;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.jakewharton.rxbinding2.view.RxView;
@@ -25,10 +24,8 @@ import com.jakewharton.rxbinding2.widget.RxTextView;
 
 
 import io.reactivex.Observable;
-import io.reactivex.ObservableSource;
-import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.schedulers.Schedulers;
+import io.reactivex.exceptions.OnErrorNotImplementedException;
 
 /**
  * A login screen that offers login via email/password.
@@ -80,50 +77,12 @@ public class LoginActivity extends Activity {
                     } else {
                         initialize();
                     }
+                },
+                throwable -> {
+                    throw new OnErrorNotImplementedException(throwable);
                 }
+
         ));
-    }
-
-    private Observable<ValidableField> getPasswordObservable() {
-        return RxTextView.textChangeEvents(mPasswordView)
-                .map(passwordChanged -> passwordChanged.text().toString())
-                .map(password -> new ValidableField(password, new PasswordValidator()));
-    }
-
-    private Observable<ValidableField> getEmailObservable() {
-        return RxTextView.textChangeEvents(mEmailView)
-                .map(emailChanged -> emailChanged.text().toString())
-                .map(email -> new ValidableField(email, new EmailValidator()));
-    }
-
-    private void initialize() {
-        disposables.add(RxView.clicks(mGoToRegistrationButton).subscribe(o -> {
-            Intent intent = new Intent(this, RegisterActivity.class);
-            startActivity(intent);
-        }));
-
-        disposables.add(RxView.clicks(mSignInButton)
-                .flatMap((Object o) -> Observable.zip(
-                        getEmailObservable(),
-                        getPasswordObservable(),
-                        (e, p) -> {
-                            ValidableForm form = new ValidableForm();
-                            form.addField(LoginFields.EMAIL, e);
-                            form.addField(LoginFields.PASSWORD, p);
-                            return form;
-                        }))
-                .doOnNext(validableForm -> {
-                    validableForm.getField(LoginFields.EMAIL).validate((Throwable e) -> {
-                        mEmailView.setError(e.getMessage());
-                        mEmailView.requestFocus();
-                    });
-                    validableForm.getField(LoginFields.PASSWORD).validate((Throwable e) -> {
-                        mEmailView.setError(e.getMessage());
-                        mEmailView.requestFocus();
-                    });
-                })
-                .filter(validableForm -> validableForm.isValid())
-                .subscribe(validForm -> attemptLogin(validForm)));
     }
 
     /**
@@ -144,7 +103,7 @@ public class LoginActivity extends Activity {
                     String password = validableForm.getValue(LoginFields.PASSWORD).toString();
 
                     // create user via auth service
-                    return Session.signIn(email, password);
+                    return SessionManager.signIn(email, password);
                 })
                 .subscribe(() -> {},
                         error -> {
@@ -160,6 +119,64 @@ public class LoginActivity extends Activity {
                             showProgress(false);
                         }));
     }
+
+
+
+
+
+    private void initialize() {
+        disposables.add(RxView.clicks(mGoToRegistrationButton).subscribe(o -> {
+            Intent intent = new Intent(this, RegisterActivity.class);
+            startActivity(intent);
+        }));
+
+        disposables.add(
+                RxView.clicks(mSignInButton)
+                        .withLatestFrom(getForm().doOnNext(this::propagateErrors),
+                                (o, validableForm) -> validableForm)
+                        // pass though only valid form
+                        .filter(validableForm -> validableForm.isValid())
+                        .subscribe(form -> attemptLogin(form)));
+    }
+
+    private Observable<ValidableField> getPasswordObservable() {
+        return RxTextView.textChangeEvents(mPasswordView)
+                .map(view -> view.text().toString())
+                .map(password -> new ValidableField(password, new PasswordValidator()));
+    }
+
+    private Observable<ValidableField> getEmailObservable() {
+        return RxTextView.textChangeEvents(mEmailView)
+                .map(view -> view.text().toString())
+                .map(email -> new ValidableField(email, new EmailValidator()));
+    }
+
+    private Observable<ValidableForm> getForm() {
+        return Observable.combineLatest(
+                getEmailObservable(),
+                getPasswordObservable(),
+                (e, p) -> {
+                    ValidableForm form = new ValidableForm();
+                    form.addField(LoginFields.EMAIL, e);
+                    form.addField(LoginFields.PASSWORD, p);
+                    return form;
+                });
+    }
+
+    private void propagateErrors(ValidableForm validableForm) {
+        validableForm.getField(LoginFields.EMAIL).validate((Throwable e) -> {
+            mEmailView.setError(e.getMessage());
+            //mEmailView.requestFocus();
+        });
+        validableForm.getField(LoginFields.PASSWORD).validate((Throwable e) -> {
+            mPasswordView.setError(e.getMessage());
+            //mPasswordView.requestFocus();
+        });
+    }
+
+
+
+
 
     /**
      * Shows the progress UI and hides the login form.

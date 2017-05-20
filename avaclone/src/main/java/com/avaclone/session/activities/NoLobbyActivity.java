@@ -8,6 +8,7 @@ import android.widget.EditText;
 
 import com.avaclone.R;
 import com.avaclone.session.Session;
+import com.avaclone.session.SessionManager;
 import com.avaclone.session.lobby.LobbyStore;
 import com.jakewharton.rxbinding2.view.RxView;
 
@@ -43,16 +44,21 @@ public class NoLobbyActivity extends Activity {
                                 finish();
                             else
                                 disposables.add(RxView.clicks(mButtonLobbyCreateView)
-                                        .flatMapCompletable(o -> LobbyStore.create(session.userProperties))
-                                        .subscribe(() -> Log.d("LOBBY", "LobbyStore created"),
-                                                throwable -> Log.d("LOBBY", "LobbyStore not created: " + throwable.getMessage()))
+                                        .subscribe(o -> {
+                                            LobbyStore.create(session.userProperties)
+                                                    .subscribe(
+                                                            () -> Log.d("LOBBY", "LobbyStore created"),
+                                                            throwable -> Log.d("LOBBY", "LobbyStore not created: " + throwable.getMessage())
+                                                    );
+
+                                        })
                                 );
                         },
                         error -> finish()));
 
         disposables.add(RxView.clicks(mButtonSignOut)
-                .doOnNext(o -> Log.v("NO LOBBY ACTIVITY","Sing out clicked"))
-                .subscribe(o -> Session.signOut()));
+                .doOnNext(o -> Log.v("NO LOBBY ACTIVITY", "Sing out clicked"))
+                .subscribe(o -> SessionManager.signOut()));
     }
 
     @Override

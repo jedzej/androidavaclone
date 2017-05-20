@@ -1,4 +1,4 @@
-package com.avaclone.utils.forms.fields;
+package com.avaclone.utils.forms.validators;
 
 import com.avaclone.utils.forms.ValidableField;
 import com.avaclone.utils.forms.ValidationFailedException;

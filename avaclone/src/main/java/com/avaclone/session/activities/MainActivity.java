@@ -16,6 +16,7 @@ package com.avaclone.session.activities;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.avaclone.R;
 import com.avaclone.session.Session;
@@ -33,29 +34,31 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_activity);
+        Log.d(TAG, "on create");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        Log.d(TAG, "on resume");
 
         // Observe session
         disposables.add(
                 Session.getObservable()
-                .subscribe(session -> {
-                    if(session.isInLobby()) {
-                        Intent intent = new Intent(this, LobbyActivity.class);
-                        startActivity(intent);
-                    }
-                    else if(session.isSignedIn()) {
-                        Intent intent = new Intent(this, NoLobbyActivity.class);
-                        startActivity(intent);
-                    }
-                    else {
-                        Intent intent = new Intent(this, LoginActivity.class);
-                        startActivity(intent);
-                    }
-                }));
+                        .firstElement()
+                        .subscribe(session -> {
+                            Log.d(TAG, "session update");
+                            if (session.isInLobby()) {
+                                Intent intent = new Intent(this, LobbyActivity.class);
+                                startActivity(intent);
+                            } else if (session.isSignedIn()) {
+                                Intent intent = new Intent(this, NoLobbyActivity.class);
+                                startActivity(intent);
+                            } else {
+                                Intent intent = new Intent(this, LoginActivity.class);
+                                startActivity(intent);
+                            }
+                        }));
 
         // Observe sign out clicks
         //disposables.add(RxView.clicks(findViewById(R.id.button_sign_out)).subscribe(o -> FirebaseAuth.getInstance().signOut()));

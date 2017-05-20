@@ -22,7 +22,10 @@ public class User {
     }
 
     public String getUid(){
-        return data.getUid();
+        if(exists())
+            return data.getUid();
+        else
+            return null;
     }
 
     public String getEmail(){

@@ -4,13 +4,21 @@ import android.util.Log;
 
 import com.avaclone.db.FirebaseUtils;
 import com.avaclone.session.lobby.Lobby;
+import com.avaclone.session.lobby.LobbyStore;
 import com.avaclone.session.user.User;
 import com.avaclone.session.user.UserProperties;
+import com.avaclone.session.user.UserPropertiesStore;
 import com.avaclone.session.user.UserStore;
 import com.google.firebase.auth.FirebaseAuth;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Vector;
+
 import io.reactivex.Completable;
 import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.BehaviorSubject;
 
 /**
@@ -18,76 +26,99 @@ import io.reactivex.subjects.BehaviorSubject;
  */
 
 public class Session {
-    public final User user;
-    public final UserProperties userProperties;
-    public final Lobby lobby;
+    public static class SessionData {
+        public final User user;
+        public final UserProperties userProperties;
+        public final Lobby lobby;
+        public final Iterable<UserProperties> lobbyMembers;
 
-    private static BehaviorSubject<Session> sessionBehaviorSubject;
+        public SessionData(){
+            user = null;
+            userProperties = null;
+            lobby = null;
+            lobbyMembers = null;
+        }
 
-    private Session(User u, UserProperties up, Lobby lp){
-        user = u;
-        userProperties = up;
-        lobby = lp;
-    }
+        public SessionData(User u, UserProperties up, Lobby lp, Iterable<UserProperties> lm){
+            user = u;
+            userProperties = up;
+            lobby = lp;
+            lobbyMembers = lm;
+        }
 
-    public boolean isSignedIn(){
-        return user != null && user.exists();
-    }
+        public boolean isSignedIn(){
+            return user != null && user.exists();
+        }
 
-    public boolean hasProperties(){
-        return userProperties != null && userProperties.isValid();
-    }
+        public boolean hasProperties(){
+            return userProperties != null && userProperties.exists();
+        }
 
-    public boolean isInLobby(){
-        return lobby != null && lobby.isValid();
-    }
+        public boolean isInLobby(){
+            return lobby != null && lobby.exists();
+        }
 
-    public boolean isLeader(){
-        return isInLobby() && lobby.leaderId.equals(user.getUid());
-    }
+        public boolean isLeader(){
+            return isInLobby() && lobby.leaderId.equals(user.getUid());
+        }
+    };
 
-    public static Completable signIn(String email, String password){
-        return FirebaseUtils.CompletableFromTask(FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password));
-    }
 
-    public static void signOut(){
-        FirebaseAuth.getInstance().signOut();
-    }
 
-    public static Completable createUser(String email, String password){
-        return FirebaseUtils.CompletableFromTask(FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password));
-    }
 
-    public static Completable createUserProperties(String username){
-        return UserStore.getObservableUser()
-                .filter(u -> u.exists())
-                .firstOrError()
-                .flatMapCompletable(u -> {
-                    UserProperties up = new UserProperties();
-                    up.userId = u.getUid();
-                    up.username = username;
-                    return UserStore.putProperties(up.userId, up);
-                });
-    }
+    private final static String TAG = "SESSION";
 
-    public static Observable<Session> getObservable(){
+    private static BehaviorSubject<SessionData> sessionBehaviorSubject;
+
+
+    public static Observable<SessionData> getObservable(){
         if(sessionBehaviorSubject == null) {
             sessionBehaviorSubject = BehaviorSubject.create();
+
+            Observable<User> userObservable = UserStore.getInstance().getObservable();
+
+            Observable<UserProperties> userPropertiesObservable = userObservable
+                    .flatMap(user -> Observable.defer(
+                            ()->UserPropertiesStore.getObservableFromUser(user)))
+                    .doOnError(throwable -> Log.e(TAG,"User properites error: " + throwable))
+                    .onErrorReturnItem(UserPropertiesStore.noValue());
+
+            Observable<Lobby> lobbyObservable = userObservable
+                    .flatMap(user -> Observable.defer(
+                            ()->LobbyStore.getObservableFromUser(user)))
+                    .doOnError(throwable -> Log.e(TAG,"Lobby error: " + throwable))
+                    .onErrorReturnItem(LobbyStore.noValue());
+
+            Observable<Iterable<UserProperties>> lobbyMembersObservable = lobbyObservable
+                    .flatMap(lobby ->LobbyStore.getInstance(lobby.retrieveId()).observeMembers())
+                    .doOnError(throwable -> {
+                        Log.v(TAG, throwable.getMessage());
+                    });
+
             Observable.combineLatest(
-                    UserStore.getObservableUser(),
-                    UserStore.getObservableUser().flatMap(user->{
-                        if(user.exists())
-                            return UserStore.getObservableUserProperties(user.getUid());
-                        else
-                            return Observable.just(new UserProperties());
-                    }),
-                    (user, up) -> new Session(user, up, null))
-                    .doOnNext(session -> Log.v("SESSION","Update"))
+                    userObservable,
+                    userPropertiesObservable,
+                    lobbyObservable,
+                    lobbyMembersObservable,
+                    (user, up, lobby, users) -> new SessionData(user, up, lobby, users))
+                    .doOnNext(sessionData -> {
+                        if (sessionData.isSignedIn()) {
+                            Log.i(TAG, "Signed in as " + sessionData.userProperties.username + " - " + sessionData.user.getUid());
+                            if(sessionData.isInLobby()) {
+                                Log.i(TAG, "In lobby " + sessionData.lobby.retrieveId() + " as " + (sessionData.isLeader() ? "leader" : "member"));
+                                for(UserProperties up:sessionData.lobbyMembers){
+                                    Log.i(TAG, "lobby members: " + up.username);
+                                }
+                            }
+                            else
+                                Log.i(TAG, "Not in lobby");
+                        } else
+                            Log.i(TAG, "Not signed in");
+                    })
                     .subscribe(
                             sessionBehaviorSubject::onNext,
                             sessionBehaviorSubject::onError,
                             sessionBehaviorSubject::onComplete);
-
         }
         return sessionBehaviorSubject;
     }

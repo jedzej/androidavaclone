@@ -4,7 +4,6 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.app.Activity;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.AutoCompleteTextView;
@@ -12,30 +11,30 @@ import android.widget.EditText;
 
 import com.avaclone.R;
 import com.avaclone.session.Session;
-import com.avaclone.session.user.User;
-import com.avaclone.session.user.UserProperties;
+import com.avaclone.session.SessionManager;
 import com.avaclone.utils.forms.ValidableField;
 import com.avaclone.utils.forms.ValidableForm;
-import com.avaclone.utils.forms.ValidationFailedException;
-import com.avaclone.utils.forms.fields.EmailValidator;
-import com.avaclone.utils.forms.fields.NonEmptyValidator;
-import com.avaclone.utils.forms.fields.PasswordValidator;
-import com.google.firebase.auth.FirebaseAuth;
+import com.avaclone.utils.forms.validators.EmailValidator;
+import com.avaclone.utils.forms.validators.NonEmptyValidator;
+import com.avaclone.utils.forms.validators.PasswordValidator;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxTextView;
 
-import java.util.HashMap;
-
-import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.schedulers.Schedulers;
 
 /**
  * A login screen that offers login via email/password.
  */
 public class RegisterActivity extends Activity {
+
+    enum RegisterFields {
+        EMAIL,
+        PASSWORD,
+        USERNAME
+    }
+
     private final CompositeDisposable disposables = new CompositeDisposable();
     // UI references.
     private AutoCompleteTextView mEmailView;
@@ -102,23 +101,23 @@ public class RegisterActivity extends Activity {
                 getUsernameObservable(),
                 (e, p, u) -> {
                     ValidableForm form = new ValidableForm();
-                    form.addField(RegisterFields.EMAIL_FIELD, e);
-                    form.addField(RegisterFields.PASSWORD_FIELD, p);
-                    form.addField(RegisterFields.USERNAME_FIELD, u);
+                    form.addField(RegisterFields.EMAIL, e);
+                    form.addField(RegisterFields.PASSWORD, p);
+                    form.addField(RegisterFields.USERNAME, u);
                     return form;
                 });
     }
 
     private void propagateErrors(ValidableForm validableForm) {
-        validableForm.getField(RegisterFields.EMAIL_FIELD).validate((Throwable e) -> {
+        validableForm.getField(RegisterFields.EMAIL).validate((Throwable e) -> {
             mEmailView.setError(e.getMessage());
             //mEmailView.requestFocus();
         });
-        validableForm.getField(RegisterFields.PASSWORD_FIELD).validate((Throwable e) -> {
+        validableForm.getField(RegisterFields.PASSWORD).validate((Throwable e) -> {
             mPasswordView.setError(e.getMessage());
             //mPasswordView.requestFocus();
         });
-        validableForm.getField(RegisterFields.USERNAME_FIELD).validate((Throwable e) -> {
+        validableForm.getField(RegisterFields.USERNAME).validate((Throwable e) -> {
             mUsernameView.setError(e.getMessage());
             //mUsernameView.requestFocus();
         });
@@ -138,13 +137,13 @@ public class RegisterActivity extends Activity {
 
         showProgress(true);
 
-        String email = form.getValue(RegisterFields.EMAIL_FIELD).toString();
-        String password = form.getValue(RegisterFields.PASSWORD_FIELD).toString();
-        String username = form.getValue(RegisterFields.USERNAME_FIELD).toString();
+        String email = form.getValue(RegisterFields.EMAIL).toString();
+        String password = form.getValue(RegisterFields.PASSWORD).toString();
+        String username = form.getValue(RegisterFields.USERNAME).toString();
 
         disposables.add(
-                Session.createUser(email, password)
-                        .andThen(Session.createUserProperties(username))
+                SessionManager.createUser(email, password)
+                        .andThen(SessionManager.createUserProperties(username))
                         .subscribe(() -> {
                                     Log.i("REGISTER ACTIVITY", "User " + username + " created");
                                 },
@@ -193,10 +192,5 @@ public class RegisterActivity extends Activity {
         disposables.clear();
     }
 
-    enum RegisterFields {
-        EMAIL_FIELD,
-        PASSWORD_FIELD,
-        USERNAME_FIELD
-    }
 }
 
